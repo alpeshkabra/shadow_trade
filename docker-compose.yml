@@ -1,0 +1,17 @@
+version: "3.8"
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: shadow
+      POSTGRES_PASSWORD: shadow
+      POSTGRES_DB: shadowtrade
+    ports:
+      - "5432:5432"
+
+  demo:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://shadow:shadow@postgres:5432/shadowtrade
+    depends_on:
+      - postgres

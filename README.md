@@ -91,44 +91,58 @@ Client Accounts (30+)
 
 ## Quick Start
 
+A runnable **reference implementation** of the engine lives under
+[`src/shadow_trade/`](src/shadow_trade). It ships with an in-memory
+**simulated broker**, so you can watch the full
+`copy → slippage guard → idempotency → reconcile` flow end-to-end without a
+real broker or a PostgreSQL instance.
+
 ```bash
-# Clone
-git clone https://github.com/raghusodani/shadowtrade-v1.git
-cd shadowtrade-v1
+# Install
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
 
-# Configure
-cp .env.example .env
-# Edit .env with your broker API keys
+# Run the end-to-end demo:
+#   master trades -> copied to 3 followers -> 2% slippage guard -> reconcile
+python run_demo.py        # or: make demo
 
-# Run
-docker compose up -d
+# Run the test suite (slippage, idempotency, orchestration, reconciliation)
+pytest                    # or: make test
 
-# Health check
+# Launch the management API (HLD section 12) and open http://localhost:8000/docs
+make api                  # uvicorn shadow_trade.asgi:app
 curl http://localhost:8000/api/v1/health
 ```
+
+By default the engine persists to a local SQLite database; point
+`DATABASE_URL` at PostgreSQL for production (see [`.env.example`](.env.example)).
 
 ## Project Structure
 
 ```
-shadowtrade-v1/
-├── docs/                  # BRD, HLD, LLD documentation
+shadow_trade/
+├── docs/                       # BRD, HLD, LLD documentation
 │   ├── BRD.md
 │   ├── HLD.md
 │   └── LLD.md
-├── config/                # Pydantic settings
-├── app/
-│   ├── main.py            # FastAPI entry point
-│   ├── auth/              # Per-client OAuth token management
-│   ├── broker/            # Broker adapter layer (Zerodha, per-client API keys)
-│   ├── core/              # Business logic (14 FR modules)
-│   ├── api/               # REST management endpoints
-│   ├── models/            # SQLAlchemy ORM models
-│   ├── schemas/           # Pydantic request/response schemas
-│   └── utils/             # Rate limiter, metrics, exceptions
-├── tests/                 # Unit + integration tests
-├── alembic/               # Database migrations
-├── docker-compose.yml
+├── src/shadow_trade/
+│   ├── engine.py               # CopyTradingEngine — composition root
+│   ├── detector.py             # Master Trade Detector (HLD 4.1)
+│   ├── orchestrator.py         # Distribution + Parallel Execution (HLD 4.3/4.4)
+│   ├── slippage.py             # Slippage Guard — 2% deviation (HLD 4.3)
+│   ├── capital.py              # Capital / margin validator (HLD 4.3)
+│   ├── reconciliation.py       # Reconciliation Engine (HLD 4.5)
+│   ├── kill_switch.py          # Kill Switch Controller (HLD 4.6)
+│   ├── audit.py                # Append-only Audit Logger (HLD 4.7)
+│   ├── models.py               # SQLAlchemy ORM models (HLD section 5)
+│   ├── api.py                  # FastAPI management endpoints (HLD section 12)
+│   ├── asgi.py                 # ASGI entrypoint (uvicorn shadow_trade.asgi:app)
+│   └── brokers/                # Broker abstraction + SimulatedBroker
+├── tests/                      # pytest suite
+├── run_demo.py                 # end-to-end demo
+├── docker-compose.yml          # engine + PostgreSQL
 ├── Dockerfile
+├── Makefile                    # install / demo / test / api
 └── requirements.txt
 ```
 
